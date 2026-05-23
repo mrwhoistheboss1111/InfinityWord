@@ -23,7 +23,13 @@ class QBankHandler(SimpleHTTPRequestHandler):
 
     def proxy_request(self, parsed):
         target = parse_qs(parsed.query).get("url", [""])[0]
-        if not target.startswith(("https://diuqbank.com/", "https://diuqbank-com.sgp1.cdn.digitaloceanspaces.com/")):
+        allowed = (
+            "https://diuqbank.com/",
+            "https://diuqbank-com.sgp1.cdn.digitaloceanspaces.com/",
+            "https://firebasestorage.googleapis.com/",
+            "https://storage.googleapis.com/",
+        )
+        if not target.startswith(allowed):
             self.send_error(400, "Unsupported proxy target")
             return
 

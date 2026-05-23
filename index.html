@@ -248,6 +248,30 @@ select.filter-select:focus { border-color: var(--accent); }
 .alert-error { background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.2); color: var(--red); }
 .alert-info { background: rgba(79,142,247,.08); border: 1px solid rgba(79,142,247,.2); color: var(--accent); }
 
+/* ADMIN / STUDENT PANELS */
+.panel-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 18px; align-items: start; }
+.panel-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+.panel-card h2 { font-family: 'Syne', sans-serif; font-size: 16px; margin-bottom: 6px; }
+.panel-card p { color: var(--muted); font-size: 12px; line-height: 1.6; margin-bottom: 14px; }
+.panel-form { display: grid; gap: 10px; }
+.panel-row { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+.panel-input, .panel-select, .panel-textarea {
+  width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+  border-radius: 8px; padding: 9px 11px; font: inherit; font-size: 13px; outline: none;
+}
+.panel-input:focus, .panel-select:focus, .panel-textarea:focus { border-color: var(--accent); }
+.panel-textarea { min-height: 90px; resize: vertical; }
+.panel-list { display: grid; gap: 10px; }
+.panel-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+.panel-item-title { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+.panel-item-meta { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.panel-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.panel-kpis { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }
+.panel-kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+.panel-kpi strong { display: block; font-size: 22px; color: var(--accent); font-family: 'Syne', sans-serif; }
+.panel-kpi span { color: var(--muted); font-size: 11px; }
+.role-pill { display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface2);border-radius:999px;padding:5px 10px;font-size:11px;color:var(--muted2); }
+
 /* â”€â”€ EMPTY STATE â”€â”€ */
 .empty-state { text-align: center; padding: 80px 20px; color: var(--muted); }
 .empty-icon { font-size: 48px; margin-bottom: 16px; }
@@ -297,6 +321,7 @@ select.filter-select:focus { border-color: var(--accent); }
   .sidebar { width: 0; min-width: 0; }
   .stats-row { grid-template-columns: repeat(2,1fr); }
   .cards-grid { grid-template-columns: 1fr; }
+  .panel-grid, .panel-row, .panel-kpis { grid-template-columns: 1fr; }
 }
 
 /* scrollbar */
@@ -333,6 +358,8 @@ select.filter-select:focus { border-color: var(--accent); }
         <input class="search-input" id="searchInput" type="text" placeholder="Search by course name, semesterâ€¦"/>
       </div>
       <div class="topbar-actions">
+        <button class="btn-view" onclick="navigate('student')" style="font-size:13px; padding:7px 16px;">Student Panel</button>
+        <button class="btn-view" onclick="navigate('admin')" style="font-size:13px; padding:7px 16px;">Admin Panel</button>
         <button class="btn-view" onclick="navigate('settings')" style="font-size:13px; padding:7px 16px;">âš™ï¸ Settings</button>
       </div>
     </div>
@@ -461,6 +488,10 @@ select.filter-select:focus { border-color: var(--accent); }
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
 <script>
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  ALL 1299 QUESTIONS FROM DIUQBANK.COM
@@ -486,6 +517,36 @@ const QUESTIONS = QRAW.map(r => ({
   course: r[3], sem: r[4], type: r[5], url: r[6]
 }));
 
+const PANEL_STORE = {
+  questions: 'diu_admin_questions',
+  submissions: 'diu_student_submissions'
+};
+
+function readStore(key, fallback = []) {
+  if (key === PANEL_STORE.questions) return state.firebaseQuestions || fallback;
+  if (key === PANEL_STORE.submissions) return state.submissions || fallback;
+  return fallback;
+}
+
+function writeStore(key, value) {
+  if (key === PANEL_STORE.questions) state.firebaseQuestions = value;
+  if (key === PANEL_STORE.submissions) state.submissions = value;
+}
+
+function normalizePanelQuestion(item) {
+  return {
+    id: item.id,
+    dept: item.dept,
+    dept_full: item.dept_full || item.dept,
+    course: item.course,
+    sem: item.sem,
+    type: item.type,
+    url: item.url || '#',
+    pdf_url: item.pdf_url || '',
+    source: item.source || 'local'
+  };
+}
+
 const DEPTS = [...new Set(QRAW.map(r => r[1]))].map(d => {
   const items = QRAW.filter(r => r[1] === d);
   return { short: d, full: items[0][2], count: items.length };
@@ -497,6 +558,21 @@ const SEMESTERS = [...new Set(QRAW.map(r => r[4]))].sort((a,b) => {
   return parse(b) - parse(a);
 });
 
+const firebaseConfig = {
+  apiKey: "AIzaSyDMh4ib3s0JChP2_JeGsZzqVm6mc_f12ok",
+  authDomain: "diu-ai.firebaseapp.com",
+  projectId: "diu-ai",
+  storageBucket: "diu-ai.firebasestorage.app",
+  messagingSenderId: "417026697560",
+  appId: "1:417026697560:web:c3f0f7358912be5824dd2d"
+};
+
+firebase.initializeApp(firebaseConfig);
+const fbAuth = firebase.auth();
+const fbDb = firebase.firestore();
+const fbStorage = firebase.storage();
+fbAuth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+
 // â”€â”€ STATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 let state = {
   page: 'all',       // 'all' | 'dept:CSE' | 'settings'
@@ -507,7 +583,14 @@ let state = {
   currentPage: 1,
   pageSize: 24,
   currentQ: null,
-  apiKey: localStorage.getItem('claude_api_key') || '',
+  apiKey: '',
+  currentUser: null,
+  userRole: null,
+  authReady: false,
+  firebaseQuestions: [],
+  submissions: [],
+  firebaseError: '',
+  authMode: 'login'
 };
 
 // â”€â”€ INIT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -515,10 +598,108 @@ function init() {
   buildSidebar();
   buildSemFilter();
   renderContent();
+  cleanBrokenText();
+  fbAuth.onAuthStateChanged(async user => {
+    state.currentUser = user;
+    state.authReady = true;
+    if (user) {
+      await loadUserRole(user);
+      try {
+        await loadFirebaseData();
+        state.firebaseError = '';
+      } catch (err) {
+        state.firebaseError = err.message;
+      }
+    } else {
+      state.userRole = null;
+      state.firebaseQuestions = [];
+      state.submissions = [];
+    }
+    buildSidebar();
+    renderContent();
+  });
   document.getElementById('searchInput').addEventListener('input', e => {
     state.search = e.target.value;
     state.currentPage = 1;
     renderContent();
+  });
+}
+
+async function loadUserRole(user) {
+  const ref = fbDb.collection('users').doc(user.uid);
+  const snap = await ref.get();
+  if (snap.exists) {
+    state.userRole = snap.data().role || 'student';
+    return;
+  }
+  state.userRole = state.pendingRole || 'student';
+  await ref.set({
+    email: user.email,
+    role: state.userRole,
+    created_at: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+}
+
+async function loadFirebaseData() {
+  const [questionSnap, submissionSnap] = await Promise.all([
+    fbDb.collection('questions').orderBy('created_at', 'desc').get().catch(() => fbDb.collection('questions').get()),
+    fbDb.collection('submissions').orderBy('created_at', 'desc').get().catch(() => fbDb.collection('submissions').get())
+  ]);
+  state.firebaseQuestions = questionSnap.docs.map(doc => normalizePanelQuestion({ id: doc.id, ...doc.data(), source: doc.data().source || 'firebase' }));
+  state.submissions = submissionSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  state.firebaseQuestions.forEach(item => addQuestionToRuntime(item, false));
+}
+
+async function handleAuth(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const email = form.email.value.trim();
+  const password = form.password.value;
+  state.pendingRole = form.role.value;
+  const alert = document.getElementById('authAlert');
+  alert.innerHTML = '<div class="alert alert-info">Signing in...</div>';
+  try {
+    if (state.authMode === 'signup') {
+      await fbAuth.createUserWithEmailAndPassword(email, password);
+    } else {
+      await fbAuth.signInWithEmailAndPassword(email, password);
+    }
+  } catch (err) {
+    alert.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
+  }
+}
+
+function toggleAuthMode() {
+  state.authMode = state.authMode === 'login' ? 'signup' : 'login';
+  renderContent();
+}
+
+async function logout() {
+  await fbAuth.signOut();
+  state.page = 'all';
+  buildSidebar();
+  renderContent();
+}
+
+function cleanBrokenText(root = document.body) {
+  const fixes = [
+    [/ðŸŽ“/g, 'DIU'], [/ðŸ“š/g, 'Books'], [/âš™ï¸/g, 'Settings'], [/ðŸ”/g, 'Search'],
+    [/ðŸ“…/g, 'Semester'], [/ðŸ›ï¸/g, 'Department'], [/â†’/g, '->'], [/â†/g, '<-'],
+    [/â€¦/g, '...'], [/â€”/g, '-'], [/Â·/g, '·'], [/âœ•/g, 'X'], [/â¤¢/g, 'Open'],
+    [/ðŸ¤–/g, 'AI'], [/ðŸ’¡/g, 'Tip'], [/ðŸ“·/g, 'Upload'], [/ðŸ“‹/g, 'List'],
+    [/ðŸ“Š/g, 'Stats'], [/â„¹ï¸/g, 'Info'], [/âœ¨/g, 'Solve'], [/â³/g, 'Working'],
+    [/âœ…/g, 'OK'], [/âŒ/g, 'Error'], [/âš ï¸/g, 'Warning'], [/ðŸ”’/g, 'Secure'],
+    [/â­/g, 'Recommended'], [/ðŸŸ£/g, 'Anthropic'], [/ðŸ”µ/g, 'Gemini'], [/âš«/g, 'OpenAI'],
+    [/ðŸ’¾/g, 'Save'], [/ðŸ—‘ï¸/g, 'Clear'], [/ðŸ”¬/g, 'Test'], [/ðŸ“Œ/g, 'Note'],
+    [/ðŸ§ª/g, 'Lab'], [/â“/g, 'Quiz'], [/ðŸ“/g, 'Mid']
+  ];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach(node => {
+    let text = node.nodeValue;
+    fixes.forEach(([pattern, replacement]) => { text = text.replace(pattern, replacement); });
+    node.nodeValue = text;
   });
 }
 
@@ -533,6 +714,19 @@ function buildSidebar() {
     </div>
     <div class="nav-item ${state.page==='settings'?'active':''}" onclick="navigate('settings')">
       <span>âš™ï¸</span> Settings
+    </div>
+    ${state.currentUser ? `
+    <div class="nav-item" onclick="logout()">
+      <span>OUT</span> Logout
+    </div>` : ''}
+    <div class="nav-section-label" style="margin-top:8px">Workspace</div>
+    <div class="nav-item ${state.page==='student'?'active':''}" onclick="navigate('student')">
+      <span>ST</span> Student Panel
+      <span class="count">${readStore(PANEL_STORE.submissions).length}</span>
+    </div>
+    <div class="nav-item ${state.page==='admin'?'active':''}" onclick="navigate('admin')">
+      <span>AD</span> Admin Panel
+      <span class="count">${readStore(PANEL_STORE.submissions).filter(s => s.status === 'pending').length}</span>
     </div>
     <div class="nav-section-label" style="margin-top:8px">Departments</div>
     ${DEPTS.map(d => `
@@ -561,6 +755,8 @@ function navigate(page) {
   if (page.startsWith('dept:')) {
     state.deptFilter = page.split(':')[1];
   } else if (page === 'all') {
+    state.deptFilter = null;
+  } else if (page === 'admin' || page === 'student' || page === 'settings') {
     state.deptFilter = null;
   }
   buildSidebar();
@@ -598,15 +794,54 @@ function getFiltered() {
 function renderContent() {
   const content = document.getElementById('content');
 
+  if (!state.authReady) {
+    document.getElementById('topbarTitle').textContent = 'DIU AI QBank';
+    document.getElementById('topbarSub').textContent = 'Connecting to Firebase...';
+    document.getElementById('filterbar').style.display = 'none';
+    content.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:0 auto 16px"></div><div class="empty-title">Loading secure workspace</div></div>';
+    return;
+  }
+
+  if (!state.currentUser) {
+    document.getElementById('topbarTitle').textContent = 'DIU AI QBank Login';
+    document.getElementById('topbarSub').textContent = 'Login is required to access question papers';
+    document.getElementById('filterbar').style.display = 'none';
+    renderAuthGate(content);
+    cleanBrokenText();
+    return;
+  }
+
   if (state.page === 'settings') {
     document.getElementById('topbarTitle').textContent = 'Settings';
     document.getElementById('topbarSub').textContent = 'Configure your API key and preferences';
     document.getElementById('filterbar').style.display = 'none';
     renderSettings(content);
+    cleanBrokenText();
+    return;
+  }
+
+  if (state.page === 'student') {
+    document.getElementById('topbarTitle').textContent = 'Student Panel';
+    document.getElementById('topbarSub').textContent = 'Submit papers, track status, and continue studying';
+    document.getElementById('filterbar').style.display = 'none';
+    renderStudentPanel(content);
+    cleanBrokenText();
+    return;
+  }
+
+  if (state.page === 'admin') {
+    document.getElementById('topbarTitle').textContent = 'Admin Panel';
+    document.getElementById('topbarSub').textContent = 'Add papers, approve submissions, and manage sections';
+    document.getElementById('filterbar').style.display = 'none';
+    renderAdminPanel(content);
+    cleanBrokenText();
     return;
   }
 
   document.getElementById('filterbar').style.display = '';
+  const firebaseNotice = state.firebaseError
+    ? `<div class="alert alert-error" style="margin-bottom:14px;">Firebase data could not load: ${escHtml(state.firebaseError)}. Check Firestore/Storage rules for this project.</div>`
+    : '';
 
   const filtered = getFiltered();
   const total = filtered.length;
@@ -620,7 +855,7 @@ function renderContent() {
   document.getElementById('topbarSub').textContent = `${total} question papers found`;
 
   if (total === 0) {
-    content.innerHTML = `
+    content.innerHTML = firebaseNotice + `
       <div class="empty-state">
         <div class="empty-icon">ðŸ”</div>
         <div class="empty-title">No results found</div>
@@ -633,7 +868,7 @@ function renderContent() {
   const statsByType = {};
   filtered.forEach(q => { statsByType[q.type] = (statsByType[q.type]||0)+1; });
 
-  let html = '';
+  let html = firebaseNotice;
 
   // Only show stats on 'all' or dept pages, not when heavily filtered
   if (!state.search && !state.typeFilter) {
@@ -701,6 +936,7 @@ function renderContent() {
   }
 
   content.innerHTML = html;
+  cleanBrokenText();
 }
 
 function getPaginationRange(cur, total) {
@@ -717,6 +953,293 @@ function goPage(p) {
   state.currentPage = p;
   renderContent();
   document.getElementById('content').scrollTop = 0;
+}
+
+function renderAuthGate(content) {
+  const signup = state.authMode === 'signup';
+  content.innerHTML = `
+    <div class="settings-page" style="max-width:760px;margin:40px auto;">
+      <div class="settings-card">
+        <h2>${signup ? 'Create Account' : 'Login'} to DIU AI QBank</h2>
+        <p>Use a student or admin account to browse question papers. Uploading and approvals are protected by Firebase login.</p>
+        <form class="panel-form" onsubmit="handleAuth(event)">
+          <input class="panel-input" name="email" type="email" placeholder="Email address" required>
+          <input class="panel-input" name="password" type="password" placeholder="Password" minlength="6" required>
+          <select class="panel-select" name="role">
+            <option value="student">Student</option>
+            <option value="admin">Admin</option>
+          </select>
+          <button class="btn-primary" type="submit">${signup ? 'Create Account' : 'Login'}</button>
+          <button class="btn-view" type="button" onclick="toggleAuthMode()">${signup ? 'Already have an account? Login' : 'New user? Create account'}</button>
+          <div id="authAlert"></div>
+        </form>
+      </div>
+    </div>`;
+}
+
+// ADMIN / STUDENT PANELS
+function deptOptions(selected = '') {
+  return DEPTS.map(d => `<option value="${d.short}" ${selected === d.short ? 'selected' : ''}>${d.short} - ${escHtml(d.full)}</option>`).join('');
+}
+
+function examOptions(selected = 'Mid') {
+  return ['Mid','Final','Quiz','Lab Final'].map(t => `<option value="${t}" ${selected === t ? 'selected' : ''}>${t}</option>`).join('');
+}
+
+function nextLocalQuestionId() {
+  return Math.max(...QUESTIONS.map(q => Number(q.id) || 0), 900000) + 1;
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) return resolve('');
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadPaperFile(file, folder) {
+  if (!file) return '';
+  const safeName = file.name.replace(/[^a-z0-9._-]/gi, '-');
+  const ref = fbStorage.ref(`${folder}/${state.currentUser.uid}/${Date.now()}-${safeName}`);
+  await ref.put(file, { contentType: file.type || 'application/octet-stream' });
+  return await ref.getDownloadURL();
+}
+
+function addQuestionToRuntime(question, persist = true) {
+  const normalized = normalizePanelQuestion(question);
+  if (QUESTIONS.some(q => String(q.id) === String(normalized.id))) return;
+  QUESTIONS.unshift(normalized);
+  const dept = DEPTS.find(d => d.short === normalized.dept);
+  if (dept) dept.count += 1;
+  if (!SEMESTERS.includes(normalized.sem)) SEMESTERS.unshift(normalized.sem);
+}
+
+function renderStudentPanel(content) {
+  const submissions = readStore(PANEL_STORE.submissions).filter(s => s.ownerUid === state.currentUser.uid);
+  const mine = submissions.slice().reverse();
+  content.innerHTML = `
+    <div class="panel-kpis">
+      <div class="panel-kpi"><strong>${submissions.length}</strong><span>Total submissions</span></div>
+      <div class="panel-kpi"><strong>${submissions.filter(s=>s.status==='pending').length}</strong><span>Waiting for admin</span></div>
+      <div class="panel-kpi"><strong>${submissions.filter(s=>s.status==='approved').length}</strong><span>Approved papers</span></div>
+    </div>
+    <div class="panel-grid">
+      <div class="panel-card">
+        <h2>Submit a New Question Paper</h2>
+        <p>Upload a PDF or image, choose the correct section, and send it for admin approval.</p>
+        <form class="panel-form" onsubmit="submitStudentQuestion(event)">
+          <div class="panel-row">
+            <input class="panel-input" name="studentName" placeholder="Your name" required>
+            <input class="panel-input" name="course" placeholder="Course name" required>
+          </div>
+          <div class="panel-row">
+            <select class="panel-select" name="dept">${deptOptions('CSE')}</select>
+            <input class="panel-input" name="sem" placeholder="Semester, e.g. Spring 26" required>
+          </div>
+          <div class="panel-row">
+            <select class="panel-select" name="type">${examOptions('Mid')}</select>
+            <input class="panel-input" name="section" placeholder="Section / batch (optional)">
+          </div>
+          <input class="panel-input" name="sourceUrl" placeholder="Source link (optional)">
+          <input class="panel-input" name="paperFile" type="file" accept="application/pdf,image/*" required>
+          <textarea class="panel-textarea" name="note" placeholder="Short note for admin, e.g. teacher name, exam date, or paper quality"></textarea>
+          <button class="btn-primary" type="submit">Submit for Approval</button>
+          <div id="studentPanelAlert"></div>
+        </form>
+      </div>
+      <div class="panel-card">
+        <h2>My Submissions</h2>
+        <p>Track approval status. Approved papers become available in the main question browser.</p>
+        <div class="panel-list">
+          ${mine.length ? mine.map(s => renderSubmissionItem(s, false)).join('') : '<div class="panel-item"><div class="panel-item-meta">No submissions yet.</div></div>'}
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderAdminPanel(content) {
+  if (state.userRole !== 'admin') {
+    content.innerHTML = '<div class="settings-card"><h2>Admin Access Required</h2><p>Your current account is a student account. Login or sign up with an admin account to approve and publish question papers.</p></div>';
+    return;
+  }
+  const submissions = readStore(PANEL_STORE.submissions);
+  const pending = submissions.filter(s => s.status === 'pending');
+  const localQuestions = readStore(PANEL_STORE.questions);
+  content.innerHTML = `
+    <div class="panel-kpis">
+      <div class="panel-kpi"><strong>${QUESTIONS.length}</strong><span>Live papers</span></div>
+      <div class="panel-kpi"><strong>${pending.length}</strong><span>Pending approvals</span></div>
+      <div class="panel-kpi"><strong>${localQuestions.length}</strong><span>Local additions</span></div>
+    </div>
+    <div class="panel-grid">
+      <div class="panel-card">
+        <h2>Add Paper as Admin</h2>
+        <p>Add a new question directly into any department and exam type. It appears instantly in search and department filters.</p>
+        <form class="panel-form" onsubmit="addAdminQuestion(event)">
+          <div class="panel-row">
+            <input class="panel-input" name="course" placeholder="Course name" required>
+            <select class="panel-select" name="dept">${deptOptions('CSE')}</select>
+          </div>
+          <div class="panel-row">
+            <input class="panel-input" name="sem" placeholder="Semester, e.g. Spring 26" required>
+            <select class="panel-select" name="type">${examOptions('Final')}</select>
+          </div>
+          <div class="panel-row">
+            <input class="panel-input" name="deptFull" placeholder="Department full name (optional)">
+            <input class="panel-input" name="sourceUrl" placeholder="Source URL (optional)">
+          </div>
+          <input class="panel-input" name="paperFile" type="file" accept="application/pdf,image/*">
+          <textarea class="panel-textarea" name="adminNote" placeholder="Internal admin note (optional)"></textarea>
+          <button class="btn-primary" type="submit">Add Paper</button>
+          <div id="adminPanelAlert"></div>
+        </form>
+      </div>
+      <div class="panel-card">
+        <h2>Approval Queue</h2>
+        <p>Review student submissions. Approving a paper publishes it into the main QBank.</p>
+        <div class="panel-list">
+          ${pending.length ? pending.map(s => renderSubmissionItem(s, true)).join('') : '<div class="panel-item"><div class="panel-item-meta">No pending submissions. The queue is clear.</div></div>'}
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderSubmissionItem(s, adminMode) {
+  return `
+    <div class="panel-item">
+      <div class="panel-item-title">${escHtml(s.course)} <span class="role-pill">${escHtml(s.status)}</span></div>
+      <div class="panel-item-meta">${escHtml(s.dept)} · ${escHtml(s.type)} · ${escHtml(s.sem)}${s.section ? ' · Section ' + escHtml(s.section) : ''}</div>
+      <div class="panel-item-meta">Submitted by ${escHtml(s.studentName || 'Student')} ${s.note ? '· ' + escHtml(s.note) : ''}</div>
+      <div class="panel-actions">
+        ${s.pdf_url ? `<button class="btn-view" onclick="previewStoredSubmission('${s.id}')">Preview</button>` : ''}
+        ${adminMode ? `<button class="btn-primary" onclick="approveSubmission('${s.id}')">Approve</button><button class="btn-view" onclick="rejectSubmission('${s.id}')">Reject</button>` : ''}
+      </div>
+    </div>`;
+}
+
+async function submitStudentQuestion(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const file = form.paperFile.files[0];
+  if (!state.currentUser) { alert('Please login before uploading a question paper.'); return; }
+  const alertBox = document.getElementById('studentPanelAlert');
+  alertBox.innerHTML = '<div class="alert alert-info">Uploading to Firebase...</div>';
+  try {
+    const dataUrl = await uploadPaperFile(file, 'student-submissions');
+    const submission = {
+      status: 'pending',
+      studentName: form.studentName.value.trim(),
+      ownerUid: state.currentUser.uid,
+      ownerEmail: state.currentUser.email,
+      course: form.course.value.trim(),
+      dept: form.dept.value,
+      dept_full: (DEPTS.find(d => d.short === form.dept.value) || {}).full || form.dept.value,
+      sem: form.sem.value.trim(),
+      type: form.type.value,
+      section: form.section.value.trim(),
+      url: form.sourceUrl.value.trim() || '#',
+      pdf_url: dataUrl,
+      note: form.note.value.trim(),
+      created_at: new Date().toISOString()
+    };
+    const docRef = await fbDb.collection('submissions').add({
+      ...submission,
+      created_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    state.submissions.unshift({ ...submission, id: docRef.id, created_at: new Date().toISOString() });
+    form.reset();
+    alertBox.innerHTML = '<div class="alert alert-success">Submitted. Admin approval is pending.</div>';
+    buildSidebar();
+    setTimeout(() => renderContent(), 700);
+  } catch (err) {
+    alertBox.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
+  }
+}
+
+async function addAdminQuestion(event) {
+  event.preventDefault();
+  if (!state.currentUser || state.userRole !== 'admin') { alert('Admin login is required to add question papers.'); return; }
+  const form = event.currentTarget;
+  const file = form.paperFile.files[0];
+  const alertBox = document.getElementById('adminPanelAlert');
+  alertBox.innerHTML = '<div class="alert alert-info">Publishing to Firebase...</div>';
+  try {
+    const dataUrl = await uploadPaperFile(file, 'admin-questions');
+    const question = {
+      id: nextLocalQuestionId(),
+      dept: form.dept.value,
+      dept_full: form.deptFull.value.trim() || (DEPTS.find(d => d.short === form.dept.value) || {}).full || form.dept.value,
+      course: form.course.value.trim(),
+      sem: form.sem.value.trim(),
+      type: form.type.value,
+      url: form.sourceUrl.value.trim() || '#',
+      pdf_url: dataUrl,
+      source: 'admin',
+      created_by: state.currentUser.uid,
+      created_by_email: state.currentUser.email
+    };
+    await fbDb.collection('questions').doc(String(question.id)).set({
+      ...question,
+      created_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    state.firebaseQuestions.unshift(question);
+    addQuestionToRuntime(question, false);
+    form.reset();
+    alertBox.innerHTML = '<div class="alert alert-success">Paper added and published.</div>';
+    buildSidebar();
+    setTimeout(() => renderContent(), 700);
+  } catch (err) {
+    alertBox.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
+  }
+}
+
+async function approveSubmission(id) {
+  if (state.userRole !== 'admin') return;
+  const submissions = readStore(PANEL_STORE.submissions);
+  const item = submissions.find(s => s.id === id);
+  if (!item) return;
+  item.status = 'approved';
+  item.approved_at = new Date().toISOString();
+  const question = { ...item, id: nextLocalQuestionId(), source: 'student-approved' };
+  await fbDb.collection('submissions').doc(id).set({
+    status: 'approved',
+    approved_at: firebase.firestore.FieldValue.serverTimestamp(),
+    approved_by: state.currentUser.uid
+  }, { merge: true });
+  await fbDb.collection('questions').doc(String(question.id)).set({
+    ...question,
+    created_at: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  state.firebaseQuestions.unshift(question);
+  addQuestionToRuntime(question, false);
+  buildSidebar();
+  renderContent();
+}
+
+async function rejectSubmission(id) {
+  if (state.userRole !== 'admin') return;
+  const submissions = readStore(PANEL_STORE.submissions);
+  const item = submissions.find(s => s.id === id);
+  if (!item) return;
+  item.status = 'rejected';
+  item.rejected_at = new Date().toISOString();
+  await fbDb.collection('submissions').doc(id).set({
+    status: 'rejected',
+    rejected_at: firebase.firestore.FieldValue.serverTimestamp(),
+    rejected_by: state.currentUser.uid
+  }, { merge: true });
+  buildSidebar();
+  renderContent();
+}
+
+function previewStoredSubmission(id) {
+  const item = readStore(PANEL_STORE.submissions).find(s => s.id === id);
+  if (!item) return;
+  state.currentQ = normalizePanelQuestion({ ...item, id: 'preview-' + id });
+  openQuestion(state.currentQ.id);
 }
 
 // â”€â”€ SETTINGS PAGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -769,7 +1292,7 @@ function renderSettings(content) {
       <input type="password" class="settings-input" id="settingsApiKey"
         value="${state.apiKey}" placeholder="sk-ant-â€¦ or gsk_â€¦ or AIzaâ€¦ or sk-â€¦"/>
       <div class="settings-note">
-        ðŸ”’ Your key is stored locally in your browser only â€” never sent to any third-party server.<br/>
+        Your key is kept only for this open app session and is not saved permanently.<br/>
         â­ <b>Recommended free option:</b> Get a free Groq key at <a href="https://console.groq.com/" target="_blank" style="color:var(--green)">console.groq.com</a> â€” no credit card required!
       </div>
       ${keySet ? `<div class="alert alert-success">âœ… Key set â€” Provider detected: <b>${providerLabel(provider)}</b></div>` : ''}
@@ -818,14 +1341,12 @@ function saveApiKey() {
     return;
   }
   state.apiKey = key;
-  localStorage.setItem('claude_api_key', key);
   document.getElementById('keyAlert').innerHTML = `<div class="alert alert-success">âœ… Saved! Provider detected: <b>${providerLabel(provider)}</b></div>`;
   setTimeout(() => renderSettings(document.getElementById('content')), 1200);
 }
 
 function clearApiKey() {
   state.apiKey = '';
-  localStorage.removeItem('claude_api_key');
   renderSettings(document.getElementById('content'));
 }
 
@@ -905,6 +1426,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
 }
 
 async function questionPdfUrl(q) {
+  if (q.pdf_url) return q.pdf_url;
   const pageUrls = [q.url, ...CORS_PROXIES.map(fn => fn(q.url))];
   for (const pageUrl of pageUrls) {
     try {
@@ -931,6 +1453,10 @@ function setupPdfJs() {
 }
 
 async function fetchPdfBytes(url) {
+  if (url.startsWith('data:')) {
+    const res = await fetch(url);
+    return await res.arrayBuffer();
+  }
   const urls = [url, ...CORS_PROXIES.map(fn => fn(url))];
   let lastError = null;
   for (const candidate of urls) {
@@ -970,6 +1496,10 @@ async function loadPdfViewer(q) {
   try {
     if (!setupPdfJs()) throw new Error('PDF.js did not load');
     currentPdfUrl = await questionPdfUrl(q);
+    if (currentPdfUrl.startsWith('data:image/')) {
+      renderImagePaper(currentPdfUrl);
+      return;
+    }
     const bytes = await fetchPdfBytes(currentPdfUrl);
     if (token !== pdfRenderToken) return;
     currentPdfBytes = bytes.slice(0);
@@ -979,6 +1509,17 @@ async function loadPdfViewer(q) {
     if (token !== pdfRenderToken) return;
     showPdfFallback(q, err.message, currentPdfUrl);
   }
+}
+
+function renderImagePaper(dataUrl) {
+  const loading = document.getElementById('pdfLoading');
+  const status = document.getElementById('pdfStatus');
+  const scroll = document.getElementById('pdfCanvasScroll');
+  scroll.innerHTML = `<img src="${dataUrl}" class="pdf-page" style="display:block;height:auto;">`;
+  scroll.style.display = 'flex';
+  currentPdfPageImages = [{ base64: dataUrl.split(',')[1], mime: dataUrl.slice(5, dataUrl.indexOf(';')) || 'image/png', name: 'Uploaded paper image' }];
+  loading.style.display = 'none';
+  status.textContent = 'Image paper ready';
 }
 
 async function renderPdfPages(token = pdfRenderToken) {
@@ -1058,7 +1599,7 @@ async function analyzeCurrentPdf() {
 }
 
 function openQuestion(id) {
-  const q = QUESTIONS.find(x => x.id === id);
+  const q = QUESTIONS.find(x => x.id === id) || (state.currentQ && state.currentQ.id === id ? state.currentQ : null);
   if (!q) return;
   state.currentQ = q;
 
@@ -1095,6 +1636,7 @@ function openQuestion(id) {
 
   document.getElementById('modalOverlay').style.display = 'flex';
   document.body.style.overflow = 'hidden';
+  cleanBrokenText(document.getElementById('modal'));
 }
 
 function pdfLoaded() {
