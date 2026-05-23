@@ -11,34 +11,28 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return signedIn()
-        && exists(userDoc(request.auth.uid))
-        && get(userDoc(request.auth.uid)).data.role == "admin";
+      return signedIn() && request.auth.token.admin == true;
+    }
+
+    function isMainAdmin() {
+      return signedIn() && request.auth.token.mainAdmin == true;
     }
 
     function isOwner(uid) {
       return signedIn() && request.auth.uid == uid;
     }
 
-    function isBootstrapAdminCreate(uid) {
-      return isOwner(uid)
-        && request.auth.token.email == "admin@diuqbank.local"
-        && request.resource.data.email == request.auth.token.email
-        && request.resource.data.role == "admin";
+    function userSafeKeysOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(["displayName", "photoURL", "lastLoginAt", "updated_at"]);
     }
 
     match /users/{uid} {
       allow read: if isOwner(uid) || isAdmin();
-      allow create: if isAdmin()
-        || (isOwner(uid)
-          && request.resource.data.email == request.auth.token.email
-          && (request.resource.data.role == "student" || isBootstrapAdminCreate(uid)));
-      allow update: if isAdmin()
-        || (isOwner(uid)
-          && request.resource.data.role == resource.data.role
-          && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(["email", "requestedRole", "adminRequestStatus", "updated_at"]));
-      allow delete: if isAdmin();
+      allow create: if isMainAdmin();
+      allow update: if isMainAdmin()
+        || (isOwner(uid) && userSafeKeysOnly());
+      allow delete: if isMainAdmin();
     }
 
     match /questions/{questionId} {

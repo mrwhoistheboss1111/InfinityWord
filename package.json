@@ -1,0 +1,12 @@
+{
+  "name": "infinityword",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "create-login-user": "node scripts/create-login-user.mjs",
+    "set-main-admin": "node scripts/set-main-admin.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}

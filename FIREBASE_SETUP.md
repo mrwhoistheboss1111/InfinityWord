@@ -1,76 +1,63 @@
-# Firebase Setup
+# Secure Firebase Login Setup
 
-This version uses Firestore only. Firebase Storage is not required.
+This is for the live GitHub Pages site:
 
-## 1. Enable Authentication
+https://mrwhoistheboss1111.github.io/InfinityWord/
 
-The screenshot error `auth/configuration-not-found` means Firebase Authentication is not enabled/configured for this project.
+The website does not store any admin password, admin email list, or editable admin secret in `index.html`.
 
-Open Firebase Console:
+Firebase Authentication handles global login from any device. Admin access is decided by Firebase custom claims (`admin: true`, `mainAdmin: true`), which can only be set with Firebase Admin credentials.
 
-1. Go to Authentication.
-2. Click Get started if it asks.
-3. Open Sign-in method.
-4. Enable Email/Password.
+## 1. Enable Firebase Authentication
 
-## 2. Replace the deny-all Firestore rules
+In Firebase Console:
 
-Deploy or paste `firestore.rules` into Firebase Console > Firestore Database > Rules.
+1. Open project `diu-ai`.
+2. Go to Authentication.
+3. Enable Google sign-in.
+4. Enable Email/Password sign-in if you want password login.
+5. Go to Authentication > Settings > Authorized domains.
+6. Add `mrwhoistheboss1111.github.io`.
 
-Your current rule blocks every app feature:
+## 2. Publish Firestore Rules
 
-```js
-match /{document=**} {
-  allow read, write: if false;
-}
-```
+Paste `firestore.rules` into Firebase Console > Firestore Database > Rules, then click Publish.
 
-## 3. Create the first admin
+These rules only allow admin edits when the signed-in Firebase token has `admin: true`. Only the main admin token can create/delete user records.
 
-Default bootstrap admin:
+## 3. Install Admin Script Dependencies
 
-```txt
-Email: admin@diuqbank.local
-Password: Admin@123456
-```
-
-You can change this later in Admin Panel > User & Admin Manager. The bootstrap account works locally so you can reach the admin panel even before Firebase is fully configured.
-
-For synced Firebase admin access, admin access is:
-
-1. A Firebase Authentication email/password account.
-2. A Firestore document at `users/{uid}` with:
-
-```json
-{
-  "email": "admin@example.com",
-  "role": "admin"
-}
-```
-
-Get the `uid` from Firebase Console > Authentication > Users.
-
-If you enable Email/Password Authentication and create/sign up `admin@diuqbank.local`, the app will create its Firestore user role as `admin` automatically after you deploy `firestore.rules`.
-
-## 4. Firestore-only uploads
-
-Uploaded PDFs/images are saved in:
-
-- `uploads/{uploadId}`
-- `uploads/{uploadId}/chunks/{chunkId}`
-
-Submissions and approved papers store a reference like:
-
-```txt
-firestore://uploads/uploadId
-```
-
-## 5. Deploy with Firebase CLI
+From this repo folder:
 
 ```powershell
-firebase login
-firebase use diu-ai
-firebase deploy --only firestore:rules
+npm.cmd install
 ```
 
-If you do not use the CLI, paste `firestore.rules` manually in Firebase Console.
+## 4. Add Private Service Account Key
+
+Firebase Console:
+
+1. Project settings.
+2. Service accounts.
+3. Generate new private key.
+4. Download the JSON.
+5. Rename it to `serviceAccountKey.json`.
+6. Put it in this repo folder while running admin scripts.
+
+Never upload `serviceAccountKey.json` to GitHub.
+
+## 5. Make Yourself Main Admin
+
+```powershell
+npm.cmd run set-main-admin -- asrahi2007@gmail.com
+```
+
+Then sign out of the website and sign in again.
+
+## 6. Add Email/Password Users
+
+```powershell
+npm.cmd run create-login-user -- student@example.com
+```
+
+That user can log in, but cannot edit admin-only data.
