@@ -10,6 +10,10 @@ service cloud.firestore {
       return /databases/$(database)/documents/users/$(uid);
     }
 
+    function publicConfig() {
+      return /databases/$(database)/documents/appConfig/public;
+    }
+
     function isAdmin() {
       return signedIn() && request.auth.token.admin == true;
     }
@@ -22,42 +26,80 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function isActiveUser() {
+      return signedIn()
+        && exists(userDoc(request.auth.uid))
+        && get(userDoc(request.auth.uid)).data.status == "active";
+    }
+
+    function provider() {
+      return request.auth.token.firebase.sign_in_provider;
+    }
+
+    function autoApproveGoogle() {
+      return exists(publicConfig()) && get(publicConfig()).data.autoApproveGoogle == true;
+    }
+
+    function autoApproveEmail() {
+      return exists(publicConfig()) && get(publicConfig()).data.autoApproveEmail == true;
+    }
+
+    function validSelfUserCreate(uid) {
+      return isOwner(uid)
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.role == "student"
+        && request.resource.data.provider == provider()
+        && (
+          request.resource.data.status == "pending"
+          || (request.resource.data.status == "active"
+            && ((provider() == "google.com" && autoApproveGoogle())
+              || (provider() == "password" && autoApproveEmail())))
+        );
+    }
+
     function userSafeKeysOnly() {
       return request.resource.data.diff(resource.data).affectedKeys()
         .hasOnly(["displayName", "photoURL", "lastLoginAt", "updated_at"]);
     }
 
+    match /appConfig/{docId} {
+      allow read: if docId == "public";
+      allow create, update, delete: if isMainAdmin();
+    }
+
     match /users/{uid} {
       allow read: if isOwner(uid) || isAdmin();
-      allow create: if isMainAdmin();
+      allow create: if isMainAdmin() || validSelfUserCreate(uid);
       allow update: if isMainAdmin()
-        || (isOwner(uid) && userSafeKeysOnly());
+        || (isOwner(uid) && resource.data.status != "suspended" && userSafeKeysOnly());
       allow delete: if isMainAdmin();
     }
 
     match /questions/{questionId} {
-      allow read: if signedIn();
+      allow read: if true;
       allow create, update, delete: if isAdmin();
     }
 
     match /submissions/{submissionId} {
-      allow read: if isAdmin() || isOwner(resource.data.ownerUid);
-      allow create: if signedIn()
+      allow read: if isAdmin() || (signedIn() && resource.data.ownerUid == request.auth.uid);
+      allow create: if isActiveUser()
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.ownerEmail == request.auth.token.email
-        && request.resource.data.status == "pending";
+        && request.resource.data.status == "pending"
+        && request.resource.data.fileData is string
+        && request.resource.data.fileData.size() <= 900000;
       allow update: if isAdmin()
-        || (isOwner(resource.data.ownerUid)
+        || (signedIn()
+          && resource.data.ownerUid == request.auth.uid
           && resource.data.status == "pending"
           && request.resource.data.ownerUid == resource.data.ownerUid
           && request.resource.data.status == "pending");
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || (signedIn() && resource.data.ownerUid == request.auth.uid && resource.data.status == "pending");
     }
 
     match /uploads/{uploadId} {
-      allow read: if signedIn()
-        && (resource.data.visibility == "public" || resource.data.ownerUid == request.auth.uid || isAdmin());
-      allow create: if signedIn()
+      allow read: if true;
+      allow create: if isActiveUser()
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.ownerEmail == request.auth.token.email
         && request.resource.data.chunkCount is int
@@ -78,9 +120,8 @@ service cloud.firestore {
           return get(/databases/$(database)/documents/uploads/$(uploadId));
         }
 
-        allow read: if signedIn()
-          && (parent().data.visibility == "public" || parent().data.ownerUid == request.auth.uid || isAdmin());
-        allow create: if signedIn()
+        allow read: if true;
+        allow create: if isActiveUser()
           && parent().data.ownerUid == request.auth.uid
           && request.resource.data.index is int
           && request.resource.data.data is string

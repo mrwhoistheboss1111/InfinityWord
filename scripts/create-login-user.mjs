@@ -47,6 +47,8 @@ await admin.auth().setCustomUserClaims(user.uid, {
 await admin.firestore().collection("users").doc(user.uid).set({
   email,
   role: "student",
+  status: "active",
+  provider: "password",
   createdAt: admin.firestore.FieldValue.serverTimestamp(),
   updated_at: admin.firestore.FieldValue.serverTimestamp()
 }, { merge: true });

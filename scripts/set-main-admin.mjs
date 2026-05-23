@@ -26,7 +26,15 @@ await admin.auth().setCustomUserClaims(user.uid, {
 await admin.firestore().collection("users").doc(user.uid).set({
   email,
   role: "admin",
+  status: "active",
   mainAdmin: true,
+  provider: "google.com",
+  updated_at: admin.firestore.FieldValue.serverTimestamp()
+}, { merge: true });
+
+await admin.firestore().collection("appConfig").doc("public").set({
+  autoApproveGoogle: true,
+  autoApproveEmail: false,
   updated_at: admin.firestore.FieldValue.serverTimestamp()
 }, { merge: true });
 

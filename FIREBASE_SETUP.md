@@ -1,63 +1,59 @@
 # Secure Firebase Login Setup
 
-This is for the live GitHub Pages site:
+The site is public by default. Visitors can browse/search/view papers without logging in.
 
-https://mrwhoistheboss1111.github.io/InfinityWord/
+Login is only needed for:
 
-The website does not store any admin password, admin email list, or editable admin secret in `index.html`.
+- student uploads
+- admin approval/suspension/removal
+- submission review
 
-Firebase Authentication handles global login from any device. Admin access is decided by Firebase custom claims (`admin: true`, `mainAdmin: true`), which can only be set with Firebase Admin credentials.
+## Auth Behavior
 
-## 1. Enable Firebase Authentication
+- Google login: auto-approved as an active student when `autoApproveGoogle` is on.
+- Email/password request: creates a pending student account.
+- Admin panel: can approve/suspend/remove students and approve/reject/remove submissions.
+- Main admin: controlled by Firebase custom claims, not by passwords in HTML.
 
-In Firebase Console:
+## Required Firebase Console Settings
 
-1. Open project `diu-ai`.
-2. Go to Authentication.
-3. Enable Google sign-in.
-4. Enable Email/Password sign-in if you want password login.
-5. Go to Authentication > Settings > Authorized domains.
-6. Add `mrwhoistheboss1111.github.io`.
+1. Authentication > Sign-in method: enable Google.
+2. Authentication > Sign-in method: enable Email/Password.
+3. Authentication > Settings > Authorized domains: add `mrwhoistheboss1111.github.io`.
+4. Firestore Database > Rules: publish `firestore.rules`.
 
-## 2. Publish Firestore Rules
+## Set Main Admin
 
-Paste `firestore.rules` into Firebase Console > Firestore Database > Rules, then click Publish.
+Put your private service account JSON in this folder as:
 
-These rules only allow admin edits when the signed-in Firebase token has `admin: true`. Only the main admin token can create/delete user records.
+```txt
+serviceAccountKey.json
+```
 
-## 3. Install Admin Script Dependencies
+Never upload that file to GitHub.
 
-From this repo folder:
+Then run:
 
 ```powershell
 npm.cmd install
-```
-
-## 4. Add Private Service Account Key
-
-Firebase Console:
-
-1. Project settings.
-2. Service accounts.
-3. Generate new private key.
-4. Download the JSON.
-5. Rename it to `serviceAccountKey.json`.
-6. Put it in this repo folder while running admin scripts.
-
-Never upload `serviceAccountKey.json` to GitHub.
-
-## 5. Make Yourself Main Admin
-
-```powershell
 npm.cmd run set-main-admin -- asrahi2007@gmail.com
 ```
 
-Then sign out of the website and sign in again.
+This also creates the public app config:
 
-## 6. Add Email/Password Users
+```js
+autoApproveGoogle: true
+autoApproveEmail: false
+```
+
+## Add Email/Password Student Manually
 
 ```powershell
 npm.cmd run create-login-user -- student@example.com
 ```
 
-That user can log in, but cannot edit admin-only data.
+Students can also request an email/password account from the login modal. Those requests appear in Admin Panel as pending users.
+
+## AI API Recommendation
+
+Use Gemini first for this website because the browser-only implementation can send PDF/image files directly to Gemini. OpenAI works well for images. Groq is good for fast text answers but does not analyze PDFs/images here.
