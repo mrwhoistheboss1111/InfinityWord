@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -574,9 +574,17 @@ firebase.initializeApp(firebaseConfig);
 const fbAuth = firebase.auth();
 const fbDb = firebase.firestore();
 fbAuth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+const ADMIN_EMAILS = [
+  'admin@diuqbank.local',
+  'asrahi2007@gmail.com'
+];
 const DEFAULT_ADMIN_EMAIL = 'admin@diuqbank.local';
 const DEFAULT_ADMIN_PASSWORD = 'Admin@123456';
 const LOCAL_ADMIN_KEY = 'diu_bootstrap_admin';
+
+function isAdminEmail(email) {
+  return ADMIN_EMAILS.map(e => e.toLowerCase()).includes(String(email || '').toLowerCase());
+}
 
 function getBootstrapAdmin() {
   try {
@@ -647,22 +655,34 @@ function init() {
 }
 
 async function loadUserRole(user) {
-  const ref = fbDb.collection('users').doc(user.uid);
-  const snap = await ref.get();
-  if (snap.exists) {
-    state.userRole = snap.data().role || 'student';
+  if (isAdminEmail(user.email)) {
+    state.userRole = 'admin';
+    try {
+      await fbDb.collection('users').doc(user.uid).set({
+        email: user.email,
+        role: 'admin',
+        updated_at: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    } catch (err) {}
     return;
   }
-  const requestedRole = state.pendingRole || 'student';
-  const isBootstrapAdmin = user.email && user.email.toLowerCase() === getBootstrapAdmin().email.toLowerCase();
-  state.userRole = isBootstrapAdmin ? 'admin' : 'student';
-  await ref.set({
-    email: user.email,
-    role: state.userRole,
-    requestedRole,
-    adminRequestStatus: state.userRole === 'admin' ? 'approved' : (requestedRole === 'admin' ? 'pending' : 'none'),
-    created_at: firebase.firestore.FieldValue.serverTimestamp()
-  }, { merge: true });
+
+  const ref = fbDb.collection('users').doc(user.uid);
+  try {
+    const snap = await ref.get();
+    if (snap.exists) {
+      state.userRole = snap.data().role || 'student';
+      return;
+    }
+    state.userRole = 'student';
+    await ref.set({
+      email: user.email,
+      role: 'student',
+      created_at: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  } catch (err) {
+    state.userRole = 'student';
+  }
 }
 
 async function loadFirebaseData() {
@@ -732,7 +752,6 @@ async function handleAuth(event) {
   const form = event.currentTarget;
   const email = form.email.value.trim();
   const password = form.password.value;
-  state.pendingRole = form.role.value;
   const alert = document.getElementById('authAlert');
   alert.innerHTML = '<div class="alert alert-info">Signing in...</div>';
   const bootstrap = getBootstrapAdmin();
@@ -759,13 +778,28 @@ async function handleAuth(event) {
   }
 }
 
+async function signInWithGoogle() {
+  const alert = document.getElementById('authAlert');
+  alert.innerHTML = '<div class="alert alert-info">Opening Google login...</div>';
+  try {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    await fbAuth.signInWithPopup(provider);
+  } catch (err) {
+    alert.innerHTML = `<div class="alert alert-error">${escHtml(formatAuthError(err))}</div>`;
+  }
+}
+
 function formatAuthError(err) {
   const code = err && err.code ? err.code : '';
   if (code === 'auth/configuration-not-found') {
     return 'Firebase Authentication is not enabled for this project. Open Firebase Console > Authentication > Sign-in method, enable Email/Password, then try again.';
   }
   if (code === 'auth/operation-not-allowed') {
-    return 'Email/Password login is disabled. Enable it in Firebase Console > Authentication > Sign-in method.';
+    return 'This login method is disabled. Enable Google and Email/Password in Firebase Console > Authentication > Sign-in method.';
+  }
+  if (code === 'auth/popup-blocked') {
+    return 'The browser blocked the Google login popup. Allow popups for this site and try again.';
   }
   return err.message || String(err);
 }
@@ -1066,17 +1100,14 @@ function renderAuthGate(content) {
     <div class="settings-page" style="max-width:760px;margin:40px auto;">
       <div class="settings-card">
         <h2>${signup ? 'Create Account' : 'Login'} to DIU AI QBank</h2>
-        <p>Use your Firebase account to browse question papers. Bootstrap admin: <code>${DEFAULT_ADMIN_EMAIL}</code> / <code>${DEFAULT_ADMIN_PASSWORD}</code>. Change it from Admin Panel after login.</p>
+        <p>Students can continue with Google or email/password. Admin access is simply any email listed in <code>ADMIN_EMAILS</code>.</p>
+        <button class="btn-primary" type="button" onclick="signInWithGoogle()" style="width:100%;margin:10px 0 12px;">Continue with Google</button>
+        <div class="settings-note" style="margin:0 0 10px;">Temporary local admin: <code>${DEFAULT_ADMIN_EMAIL}</code> / <code>${DEFAULT_ADMIN_PASSWORD}</code></div>
         <form class="panel-form" onsubmit="handleAuth(event)">
           <input class="panel-input" name="email" type="email" placeholder="Email address" required>
           <input class="panel-input" name="password" type="password" placeholder="Password" minlength="6" required>
-          <select class="panel-select" name="role">
-            <option value="student">Student</option>
-            <option value="admin">Request Admin</option>
-          </select>
           <button class="btn-primary" type="submit">${signup ? 'Create Account' : 'Login'}</button>
           <button class="btn-view" type="button" onclick="toggleAuthMode()">${signup ? 'Already have an account? Login' : 'New user? Create account'}</button>
-          <div class="settings-note">For admin: create or sign in with your Firebase Auth email/password, then set that user's document at <code>users/{uid}</code> to <code>role: "admin"</code> in Firebase Console.</div>
           <div id="authAlert"></div>
         </form>
       </div>
@@ -1225,7 +1256,7 @@ function renderStudentPanel(content) {
 
 function renderAdminPanel(content) {
   if (state.userRole !== 'admin') {
-    content.innerHTML = '<div class="settings-card"><h2>Admin Access Required</h2><p>Your current account is a student account. Admin access must be granted in Firebase at <code>users/{uid}</code> with <code>role: "admin"</code>.</p></div>';
+    content.innerHTML = '<div class="settings-card"><h2>Admin Access Required</h2><p>This email is logged in as a student. To make it admin, add the email to <code>ADMIN_EMAILS</code> in <code>index.html</code> and the same email list in <code>firestore.rules</code>.</p></div>';
     return;
   }
   const submissions = readStore(PANEL_STORE.submissions);
@@ -2345,6 +2376,7 @@ Object.assign(window, {
   clearImage,
   setQuickQ,
   solveQuestion,
+  signInWithGoogle,
   askTopics,
   askPractice,
   openQuestion,
