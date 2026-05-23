@@ -1,0 +1,102 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(userDoc(request.auth.uid))
+        && get(userDoc(request.auth.uid)).data.role == "admin";
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isBootstrapAdminCreate(uid) {
+      return isOwner(uid)
+        && request.auth.token.email == "admin@diuqbank.local"
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.role == "admin";
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isAdmin()
+        || (isOwner(uid)
+          && request.resource.data.email == request.auth.token.email
+          && (request.resource.data.role == "student" || isBootstrapAdminCreate(uid)));
+      allow update: if isAdmin()
+        || (isOwner(uid)
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(["email", "requestedRole", "adminRequestStatus", "updated_at"]));
+      allow delete: if isAdmin();
+    }
+
+    match /questions/{questionId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /submissions/{submissionId} {
+      allow read: if isAdmin() || isOwner(resource.data.ownerUid);
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerEmail == request.auth.token.email
+        && request.resource.data.status == "pending";
+      allow update: if isAdmin()
+        || (isOwner(resource.data.ownerUid)
+          && resource.data.status == "pending"
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.status == "pending");
+      allow delete: if isAdmin();
+    }
+
+    match /uploads/{uploadId} {
+      allow read: if signedIn()
+        && (resource.data.visibility == "public" || resource.data.ownerUid == request.auth.uid || isAdmin());
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerEmail == request.auth.token.email
+        && request.resource.data.chunkCount is int
+        && request.resource.data.chunkCount > 0
+        && request.resource.data.chunkCount <= 80
+        && request.resource.data.mime.matches('(application/pdf|image/.*)')
+        && (request.resource.data.visibility == "private"
+          || (request.resource.data.visibility == "public" && isAdmin()));
+      allow update: if isAdmin()
+        || (signedIn()
+          && resource.data.ownerUid == request.auth.uid
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.visibility == resource.data.visibility);
+      allow delete: if isAdmin() || (signedIn() && resource.data.ownerUid == request.auth.uid);
+
+      match /chunks/{chunkId} {
+        function parent() {
+          return get(/databases/$(database)/documents/uploads/$(uploadId));
+        }
+
+        allow read: if signedIn()
+          && (parent().data.visibility == "public" || parent().data.ownerUid == request.auth.uid || isAdmin());
+        allow create: if signedIn()
+          && parent().data.ownerUid == request.auth.uid
+          && request.resource.data.index is int
+          && request.resource.data.data is string
+          && request.resource.data.data.size() <= 700000;
+        allow update, delete: if isAdmin() || (signedIn() && parent().data.ownerUid == request.auth.uid);
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
